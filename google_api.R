@@ -42,6 +42,7 @@ get_data = function(api_url){
 }
 
 # To Complete
-parse_data = function(json){
-  #max(datos$rows$elements[[3]]$duration$text, na.rm = TRUE)
+parse_data = function(json)
+{
+  return (as.data.frame(json$rows$elements)$duration$value)
 }
