@@ -1,17 +1,29 @@
-#Jesus Rincon
-#20.142.782
-#Insersion de librerias
+---
+title: "Becas"
+author: "Jesus Rincon"
+date: "11 de marzo de 2016"
+output: html_document
+---
+#Becas Crema 2.0
+##Librerias
+Procedemos a cargar todas las librerias que se quieran utilizar
+
+```{r}
 library(NbClust)
 library(cluster) 
 library(fpc)
 library(apcluster)
 library(tree)
 library(kknn)
+library(rpart)
 library(party)
 library(rattle)
 library(arules)
 library(RWeka)
+```
+## Cargamos los datos, y creamos una funcion para el codo de jamboo
 
+```{r}
 fulldata <- read.csv("minable.csv", header = TRUE, sep = ",")
 minado <- fulldata
 
@@ -22,8 +34,6 @@ wssplot <- function(data, nc=15, seed=1234){
     wss[i] <- sum(kmeans(data, centers=i)$withinss)}
   plot(1:nc, wss, type="b", xlab="Number of Clusters",
        ylab="Within groups sum of squares")}
-
-
 
 minado$fNacimiento = NULL
 minado$aEconomica = NULL
@@ -39,42 +49,56 @@ minado2 <- minado
 minado <- scale(minado[-1])
 set.seed(100)
 
+```
+##Elaboramos un set de entrenamiento y un set de prueba.
+```{r}
+set.seed(100)
+
 train <- sample (1:nrow(minado), .8*nrow(minado)) # training row indices
 
 standar <- minado[train, ] # training data
 
 testData <- minado[-train, ] # test data
 
+```
+#K vecinos 
+
+```{r, echo= FALSE, message= FALSE, warning=FALSE}
+
 set.seed(123)
-
 wssplot(standar)
-
-
-fit.km <- kmeans(minado, 3, nstart=20) 
-standar <- as.data.frame.numeric(standar)
-clusplot(minado, fit.km$cluster, color=TRUE, shade=TRUE, 
+fit.km <- kmeans(standar, 3, nstart=20) 
+clusplot(standar, fit.km$cluster, color=TRUE, shade=TRUE, 
          labels=2, lines=0)
+plotcluster(standar, fit.km$cluster)
 standar <- as.data.frame(standar)
 testData <- as.data.frame(testData)
-#kvec <- kknn(formula =  ~. , train=standar, test=testData,k=10)
+kvec <- kknn(formula = pAprobado ~. , train=standar, test=testData,k=10)
 prediction <- predict(kvec, testData$mIngreso)
 
-mk <- table(testData$mIngreso, kvec$fitted.values)
-mk
+```
+##Elaboramos un nuevo set de entrenamiento y prueba para hacer el arbol de desicion
 
+```{r}
 train <- sample (1:nrow(minado2), .8*nrow(minado2)) # training row indices
 
 standar <- minado[train, ] # training data
 
 testData <- minado[-train, ] # test data
+```
+#Arbol de desicion
+Como se puede observar en la grafica, la mejor manera de poder clasificar a una persona por su ingreso, va relacionada con con Aprobado, Su procedencia y nos da una relacion de hasta el 62% para poder determinar el monto de ingresos.
 
-
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 standar <- as.data.frame(standar)
 testData <- as.data.frame(testData)
-#tree <- ctree(standar$eficiencia ~ .,data = standar, method = 'class')
-#tree <- ctree(mIngreso ~ .,data = standar)
 tree = rpart(mIngreso ~ ., data = standar, method = "class", control = rpart.control(minsplit = 10, cp = 0.001, maxdepth = 3))
 fancyRpartPlot(tree)
+```
+#Matriz de confusion
+Ahora bien procedemos a mostrar la matriz de confusion para observar la calidad
+
+```{r}
 
 pred.response <- as.character (predict(tree), testData)
 input.response <- as.character (testData$eficiencia)
@@ -82,11 +106,14 @@ mean (input.response != pred.response)
 m = table(testData$mIngreso, predict(tree, newdata = testData,type = "class"))
 
 m
-
+```
+#Iniciamos con las reglas de clasificacion
+Usamos la herramienta llamada JRip para obtener la regla de asociacion, Despues de esto mostramos la matriz de confusion asociada al metodo.
+```{r}
 
 standar$mIngreso <- as.factor(standar$mIngreso)
 rule <- JRip(formula = mIngreso ~ ., data = standar)
-m1 = table(testData$sexo, predict(rule, newdata = testData,type = "class"))
+m1 = table(testData$mIngreso, predict(rule, newdata = testData,type = "class"))
 
 m1
-
+```

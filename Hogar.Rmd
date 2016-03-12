@@ -1,16 +1,47 @@
-library('xlsx')
-# Seleccionar google_api.R en su sistema de archivos
-source(file.choose())
+---
+title: "Becas"
+author: "Jesus Rincon"
+date: "11 de marzo de 2016"
+output: html_document
+---
 
+
+#Hogares
+
+Tomamos en cuenta que buscamos una habitacion donde los factos que se consideran mas importantes son, el tiempo de traslado hacia la universidad y el piso del edificio en donde sera el posible hospedaje.
+
+Iniciamos el proceso de cargar las librerias a emplear, y cargar el documento respectivo
+
+```{r, echo=FALSE}
+
+library('xlsx')
+source("google_api.R")
 df <- read.xlsx("hogares.xlsx", sheetIndex = 1, startRow = 1, endRow = 104, header = T)
 
+```
+
+#Preprocesamiento de los datos
+
+##Eliminamos las columnas consideradas innecesarias.
+
+Tales como:
+*Foto
+*Distrito
+*Habitaciones Disponibles
+*Precio Mensual
+
+```{r, echo=FALSE}
 df$Foto = NULL
 df$Distrito = NULL
 df$Habitaciones.Disponibles = NULL
 df$Precio.Mensual <- NULL
-
+```
+##Cambiamos los datos del Tipo de habitacion hacia una vista minable
+Apartamento sera Tipo 2
+Mini apartamento sera Tipo 1
+Local sera Tipo 0
+```{r}
 df$Tipo.de.Inmueble <- as.character(df$Tipo.de.Inmueble)
-
 df$Tipo.de.Inmueble[df$Tipo.de.Inmueble == "Appartamento"] <- 2
 df$Tipo.de.Inmueble[df$Tipo.de.Inmueble == "Appartameno"] <- 2
 df$Tipo.de.Inmueble[df$Tipo.de.Inmueble == "Appartamenti"] <- 2
@@ -20,15 +51,23 @@ df$Tipo.de.Inmueble[df$Tipo.de.Inmueble == "Mini Appartamento"] <- 0
 df$Tipo.de.Inmueble[df$Tipo.de.Inmueble == "Mini appartamento"] <- 0
 df$Tipo.de.Inmueble[df$Tipo.de.Inmueble == "Mini\nAppartamento"] <- 0
 df$Tipo.de.Inmueble[df$Tipo.de.Inmueble == "Monolocale"] <- 1
+```
+##Cambiamos los datos en Tipo de Piso
+Como se habia acordado en clase, las definiciones T, R, S, y ST son irrelevantes, por lo que le daremos la ponderacion de un primer piso a estas.
 
+```{r}
 df$Piso <- as.character(df$Piso)
-
 df$Piso[df$Piso == "T"] <- 1
 df$Piso[df$Piso == "R"] <- 1
 df$Piso[df$Piso == "S"] <- 1
 df$Piso[df$Piso == "ST"] <- 1
 df$Piso <- gsub("°","",df$Piso)
 
+```
+##Cambiamos ahora la direccion por el tiempo en segundos
+Aqui, nos conectamos al API de google maps para saber con determinacion cuanto tiempo tardaremos desde la habitacion hasta la universidad.
+
+```{r}
 df$Dirección <- gsub("\n"," ",df$Dirección)
 api_key = "AIzaSyBG65bqbSYkHBe25jbQ08jHZMzOtfa4fys"
 origen = "Università di Roma - Sapienza"
@@ -39,7 +78,7 @@ for( i in 1:nrow((df))){
   datos = get_data(api_url)
   datos$rows$elements[[1]]$status
   if(datos$rows$elements[[1]]$status == "ZERO_RESULTS" || datos$rows$elements[[1]]$status == "NOT_FOUND"){
-    tiempo = 0
+    tiempo = 100
   } else {
     tiempo = parse_data(datos)
     
@@ -49,6 +88,12 @@ for( i in 1:nrow((df))){
 }
 
 
+```
+##Cambiamos la descripcion de la habitacion
+
+Ahora bien, para llegar a este punto se usa un sistema de aparicion de palabras, para poder ponderar la calidad o comodidad que tiene una habitacion segun su descripcion, EL saber si tiene cocina, baño, terraza, sala de estar, corredor, aire acondicionado, internet, entrada independiente, para asi saber cual es la habitacion mas destacada.
+
+```{r}
 df$Descripción <- as.character(df$Descripción)
 df$Descripción <- gsub("2 bagno,","11",df$Descripción)
 df$Descripción <- gsub("2 bagni","11",df$Descripción)
@@ -129,7 +174,10 @@ df$Descripción[62] = "111111"
 df$Descripción[103] = "1111"
 df$Descripción[nchar(df$Descripción) <= 5] <- nchar(df$Descripción) 
 df$Descripción[nchar(df$Descripción) >= 4] <- nchar(df$Descripción)
-
+```
+##Residente apropiado para la habitacion
+En este punto seleccionamos la disponibilidad para hombre o mujer en una habitacion.
+```{r}
 df$Notas <-  sub(".*ragazzi/ragazze.*","1",df$Notas)
 df$Notas <-  sub(".*ragazze/ragazzi.*","1",df$Notas)
 df$Notas <-  sub(".*ragazze/i.*","1",df$Notas)
@@ -137,9 +185,14 @@ df$Notas <-  sub(".*ragazzi/e.*","1",df$Notas)
 df$Notas <-  sub(".*ragazzi.*","2",df$Notas)
 df$Notas <-  sub(".*ragazze.*","3",df$Notas)
 df$Notas[39] <- 1
+```
+##Ahora bien, ploteamos
+Mostramos una grafica en donde los ejes son la descripcion y el piso en donde se encuentra
 
+```{r, echo=FALSE}
 plot(x = df$Piso, y = df$Descripción)
-linear <- lm(df$Descripción ~  ., data = df)
+linear <- lm(Descripción ~ Notas + Piso , data = df)
 abline(linear)
 
+```
 
